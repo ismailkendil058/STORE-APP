@@ -42,9 +42,9 @@ const ProductSearch = ({ search, onSearchChange, onBarcodeScan }: ProductSearchP
 
       {showScanner && (
         <BarcodeScanner
+          continuous={true}
           onScan={(code) => {
             onBarcodeScan(code);
-            setShowScanner(false);
           }}
           onClose={() => setShowScanner(false)}
         />

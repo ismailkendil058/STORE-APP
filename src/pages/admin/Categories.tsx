@@ -69,7 +69,13 @@ const AdminCategories = () => {
         {categories.length === 0 && <p className="text-center text-muted-foreground text-sm mt-8">No categories yet</p>}
       </div>
 
-      <Dialog open={showDialog} onOpenChange={setShowDialog}>
+      <Dialog open={showDialog} onOpenChange={(open) => {
+        setShowDialog(open);
+        if (!open) {
+          setEditing(null);
+          setName("");
+        }
+      }}>
         <DialogContent className="max-w-sm rounded-2xl">
           <DialogHeader><DialogTitle>{editing ? "Edit Category" : "Add Category"}</DialogTitle></DialogHeader>
           <div className="space-y-3">

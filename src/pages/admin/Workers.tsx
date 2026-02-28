@@ -110,7 +110,14 @@ const AdminWorkers = () => {
         )}
       </div>
 
-      <Dialog open={showDialog} onOpenChange={setShowDialog}>
+      <Dialog open={showDialog} onOpenChange={(open) => {
+        setShowDialog(open);
+        if (!open) {
+          setEditing(null);
+          setName("");
+          setPin("");
+        }
+      }}>
         <DialogContent className="max-w-sm rounded-2xl">
           <DialogHeader>
             <DialogTitle>{editing ? "Edit Worker" : "Add Worker"}</DialogTitle>
