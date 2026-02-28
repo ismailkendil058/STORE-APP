@@ -185,8 +185,15 @@ const AdminProducts = () => {
 
       <Dialog open={showDialog} onOpenChange={(open) => { if (!open) resetForm(); }}>
         <DialogContent className={`max-w-md rounded-2xl ${showScanner ? 'max-h-[500px] p-0' : 'max-h-[90vh] overflow-y-auto'}`}>
-          <DialogHeader>
+          <DialogHeader className="relative">
             <DialogTitle>{editing ? "Edit Product" : "Add Product"}</DialogTitle>
+            <button
+              onClick={() => setShowDialog(false)}
+              className="absolute right-4 top-4 p-2 hover:bg-secondary rounded-xl transition-colors"
+              title="Close"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </DialogHeader>
           
           {showScanner ? (
