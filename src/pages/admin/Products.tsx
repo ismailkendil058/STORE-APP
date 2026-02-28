@@ -117,6 +117,7 @@ const AdminProducts = () => {
     }
 
     setShowDialog(false);
+    setShowScanner(false);
     resetForm();
     fetchProducts();
     toast.success(editing ? "Product updated" : "Product added");
@@ -141,7 +142,7 @@ const AdminProducts = () => {
     <div className="p-4 space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">Products</h2>
-<Button onClick={() => { resetForm(); setShowScanner(true); }} size="sm" className="rounded-xl gap-1">
+        <Button onClick={() => { resetForm(); setShowDialog(true); setShowScanner(true); }} size="sm" className="rounded-xl gap-1">
           <Plus className="w-4 h-4" /> Add
         </Button>
       </div>
@@ -179,7 +180,7 @@ const AdminProducts = () => {
         {products.length === 0 && <p className="text-center text-muted-foreground text-sm mt-8">No products yet</p>}
       </div>
 
-      <Dialog open={showDialog} onOpenChange={setShowDialog}>
+      <Dialog open={showDialog} onOpenChange={(open) => { setShowDialog(open); if (!open) setShowScanner(false); }}>
         <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto rounded-2xl">
           <DialogHeader>
             <DialogTitle>{editing ? "Edit Product" : "Add Product"}</DialogTitle>
@@ -261,7 +262,6 @@ const AdminProducts = () => {
           onScan={(scannedBarcode) => {
             setBarcode(scannedBarcode);
             setShowScanner(false);
-            setShowDialog(true);
           }} 
           onClose={() => setShowScanner(false)} 
         />
