@@ -1,8 +1,8 @@
 {
   "$schema": "https://json.schemastore.org/web-manifest",
-  "name": "STORE APP",
-  "short_name": "STORE APP",
-  "description": "Premium Retail Worker Point-of-Sale",
+  "name": "Alimentation Issam",
+  "short_name": "Alimentation Issam",
+  "description": "Premium Grocery Store POS",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
@@ -13,7 +13,7 @@
   "dir": "rtl",
   "icons": [
     {
-      "src": "/store-icon.jpg",
+      "src": "/Store Icon - Noun Project.jpg",
       "sizes": "192x192 512x512",
       "type": "image/jpeg",
       "purpose": "any maskable"
