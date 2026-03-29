@@ -207,7 +207,19 @@ const AdminProducts = () => {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => setShowScanner(true)}
+                onClick={async () => {
+                  try {
+                    // Pre-requesting permission in the user gesture stack for iOS PWA compatibility
+                    // This creates the direct interaction window Safari requires
+                    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                    // Once granted, we stop the initial stream and show the scanner
+                    stream.getTracks().forEach(t => t.stop());
+                    setShowScanner(true);
+                  } catch (err) {
+                    console.warn("Pre-permission failed or was denied, opening scanner for recovery", err);
+                    setShowScanner(true); // Still open scanner to show error message or try again
+                  }
+                }}
                 className="h-11 rounded-xl px-3"
                 aria-label="Scan barcode"
               >

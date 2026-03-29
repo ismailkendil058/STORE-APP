@@ -137,26 +137,36 @@ const BarcodeScanner = ({ onScan, onClose, continuous = false }: BarcodeScannerP
         try {
           await videoRef.current.play();
           setPermissionState('granted');
+
+          // CRITICAL UX FIX:
+          // Set scanning status to "scanning" AS SOON AS the video starts playing.
+          // This removes the "Accessing camera..." overlay and shows the camera feed.
+          // This way, the user sees it's working even if zxing is still warming up.
+          if (isMounted.current) {
+            setScanningStatus("scanning");
+            setHasCamera(true);
+          }
         } catch (playError) {
           console.error("Video play error (likely blocked by iOS PWA policy):", playError);
-          // If playback is blocked, it means iOS didn't consider our mount as a direct enough gesture.
-          // The UI will show the "Tap to retry" or we can show a specific "Start Camera" button.
           setShowRetry(true);
           return; // Stop here and wait for retry intervention
         }
 
         if (retryTimeout) clearTimeout(retryTimeout);
 
-        // Start decoding from the already-playing element
-        const controls = await reader.decodeFromVideoElement(videoRef.current, scanCallback);
-
-        if (isMounted.current) {
-          controlsRef.current = controls;
-          setHasCamera(true);
-          setScanningStatus("scanning");
-        } else {
-          controls.stop();
-          stream.getTracks().forEach(track => track.stop());
+        // Now start the barcode decoder in the background
+        try {
+          const controls = await reader.decodeFromVideoElement(videoRef.current, scanCallback);
+          if (isMounted.current) {
+            controlsRef.current = controls;
+          } else {
+            controls.stop();
+            if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
+          }
+        } catch (decoderError) {
+          console.error("Scanner decoder error:", decoderError);
+          // If decoder fails but video is playing, we can stay in "scanning" but maybe show a subtle error
+          // or just let the retry mechanism handle it if it truly doesn't work.
         }
       }
     } catch (err) {

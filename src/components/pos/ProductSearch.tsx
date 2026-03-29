@@ -25,7 +25,16 @@ const ProductSearch = ({ search, onSearchChange, onBarcodeScan }: ProductSearchP
           />
         </div>
         <button
-          onClick={() => setShowScanner(true)}
+          onClick={async () => {
+            try {
+              // Same user gesture stack fix for iOS Safari shortcuts
+              const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+              stream.getTracks().forEach(t => t.stop());
+              setShowScanner(true);
+            } catch (err) {
+              setShowScanner(true);
+            }
+          }}
           className="h-11 w-11 rounded-xl bg-foreground text-background flex items-center justify-center shrink-0 active:scale-95 transition-transform"
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
