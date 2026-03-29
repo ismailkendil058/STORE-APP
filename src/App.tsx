@@ -31,47 +31,22 @@ const AppContent = () => {
 
     // Update Manifest Link
     const updateManifest = () => {
-      let link = document.querySelector('link[rel="manifest"]') as HTMLLinkElement;
-      if (link) {
-        if (link.href !== window.location.origin + manifestPath) {
-          link.href = manifestPath;
-        }
-      } else {
-        link = document.createElement('link');
-        link.rel = 'manifest';
+      const link = (document.getElementById('dynamic-manifest') || document.querySelector('link[rel="manifest"]')) as HTMLLinkElement;
+      if (link && link.href !== window.location.origin + manifestPath) {
         link.href = manifestPath;
-        document.head.appendChild(link);
       }
     };
 
     // Update Meta Tags for iOS/Android
     const updateMetaTags = () => {
-      // iOS Home Screen Title
-      let appleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]') as HTMLMetaElement;
-      if (!appleTitle) {
-        appleTitle = document.createElement('meta');
-        appleTitle.name = 'apple-mobile-web-app-title';
-        document.head.appendChild(appleTitle);
-      }
-      appleTitle.content = appTitle;
+      const appleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]') as HTMLMetaElement;
+      if (appleTitle) appleTitle.content = appTitle;
 
-      // Android/General App Name
-      let appName = document.querySelector('meta[name="application-name"]') as HTMLMetaElement;
-      if (!appName) {
-        appName = document.createElement('meta');
-        appName.name = 'application-name';
-        document.head.appendChild(appName);
-      }
-      appName.content = appTitle;
+      const appName = document.querySelector('meta[name="application-name"]') as HTMLMetaElement;
+      if (appName) appName.content = appTitle;
 
-      // Theme Color
-      let themeColor = document.querySelector('meta[name="theme-color"]') as HTMLMetaElement;
-      if (!themeColor) {
-        themeColor = document.createElement('meta');
-        themeColor.name = 'theme-color';
-        document.head.appendChild(themeColor);
-      }
-      themeColor.content = '#000000';
+      const themeColor = document.querySelector('meta[name="theme-color"]') as HTMLMetaElement;
+      if (themeColor) themeColor.content = '#000000';
     };
 
     updateManifest();

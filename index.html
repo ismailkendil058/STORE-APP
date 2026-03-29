@@ -14,7 +14,35 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <link rel="manifest" href="/manifest.json">
+  <script>
+    (function () {
+      const isAdminPath = window.location.pathname.startsWith('/admin');
+      const manifestPath = isAdminPath ? '/sa-admin.json' : '/sa-worker.json';
+      const appTitle = isAdminPath ? 'SA admin' : 'SA worker';
+
+      // Create and inject manifest link
+      const link = document.createElement('link');
+      link.rel = 'manifest';
+      link.id = 'dynamic-manifest';
+      link.href = manifestPath;
+      document.head.appendChild(link);
+
+      // Set Apple-specific meta title
+      const appleMeta = document.createElement('meta');
+      appleMeta.name = 'apple-mobile-web-app-title';
+      appleMeta.content = appTitle;
+      document.head.appendChild(appleMeta);
+
+      // Set application-name meta
+      const appMeta = document.createElement('meta');
+      appMeta.name = 'application-name';
+      appMeta.content = appTitle;
+      document.head.appendChild(appMeta);
+
+      // Set initial page title
+      document.title = appTitle;
+    })();
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link
