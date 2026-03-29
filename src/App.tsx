@@ -22,25 +22,25 @@ const AppContent = () => {
   const location = useLocation();
 
   useEffect(() => {
-    const isAdminPath = location.pathname === '/admin/login' || location.pathname.startsWith('/admin/');
+    const isAdminPath = location.pathname.startsWith('/admin');
     const manifestPath = isAdminPath ? '/sa-admin.json' : '/sa-worker.json';
     const appTitle = isAdminPath ? 'SA admin' : 'SA worker';
+
+    // Update Page Title
+    document.title = appTitle;
 
     // Update Manifest Link
     const updateManifest = () => {
       let link = document.querySelector('link[rel="manifest"]') as HTMLLinkElement;
       if (link) {
-        if (link.getAttribute('href') !== manifestPath) {
-          const newLink = document.createElement('link');
-          newLink.rel = 'manifest';
-          newLink.href = manifestPath;
-          link.parentNode?.replaceChild(newLink, link);
+        if (link.href !== window.location.origin + manifestPath) {
+          link.href = manifestPath;
         }
       } else {
-        const newLink = document.createElement('link');
-        newLink.rel = 'manifest';
-        newLink.href = manifestPath;
-        document.head.appendChild(newLink);
+        link = document.createElement('link');
+        link.rel = 'manifest';
+        link.href = manifestPath;
+        document.head.appendChild(link);
       }
     };
 
@@ -71,7 +71,7 @@ const AppContent = () => {
         themeColor.name = 'theme-color';
         document.head.appendChild(themeColor);
       }
-      themeColor.content = '#000000'; // Match manifest theme_color
+      themeColor.content = '#000000';
     };
 
     updateManifest();
