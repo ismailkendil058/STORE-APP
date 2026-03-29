@@ -36,8 +36,11 @@ const BarcodeScanner = ({ onScan, onClose, continuous = false }: BarcodeScannerP
       streamRef.current = null;
     }
 
+
     if (controlsRef.current) {
-      controlsRef.current.stop();
+      if (typeof controlsRef.current.stop === 'function') {
+        controlsRef.current.stop();
+      }
       controlsRef.current = null;
     }
   }, []);
@@ -49,14 +52,20 @@ const BarcodeScanner = ({ onScan, onClose, continuous = false }: BarcodeScannerP
     let retryTimeout: NodeJS.Timeout | null = null;
 
     try {
-      // Small delay to ensure DOM is ready and any previous stream is fully cleared
-      await new Promise(resolve => setTimeout(resolve, 300));
+      // Ensure we clean up any previous stream/controls first
+      stopCamera();
 
+      // Removed 300ms delay to ensure the request is physically closer to the user gesture (mount button click)
       if (!isMounted.current) return;
 
-      // Check for permission first if API is available
+      // Simple detection for Apple's specific requirements
+      const isIOSPWA = /iPad|iPhone|iPod/.test(navigator.userAgent) &&
+        ((window as any).navigator?.standalone || window.matchMedia('(display-mode: standalone)').matches);
+
       if (typeof navigator !== 'undefined' && navigator.permissions && navigator.permissions.query) {
         try {
+          // Camera permission query is somewhat unstable/unsupported on many mobile platforms
+          // We'll proceed regardless but use it as a helpful "early out" if denied
           const result = await navigator.permissions.query({ name: 'camera' as PermissionName });
           setPermissionState(result.state);
 
@@ -65,10 +74,6 @@ const BarcodeScanner = ({ onScan, onClose, continuous = false }: BarcodeScannerP
             setScanningStatus("error");
             return;
           }
-
-          result.onchange = () => {
-            if (isMounted.current) setPermissionState(result.state);
-          };
         } catch (e) {
           console.log("Permission query not supported", e);
         }
@@ -91,11 +96,13 @@ const BarcodeScanner = ({ onScan, onClose, continuous = false }: BarcodeScannerP
 
       const reader = new BrowserMultiFormatReader(hints);
 
+      // More robust constraints for iOS
       const constraints: MediaStreamConstraints = {
         video: {
           facingMode: { ideal: "environment" },
-          width: { ideal: 720 },
-          height: { ideal: 480 }
+          // Using more standard dimensions instead of just ideal to help some older iOS versions
+          width: { ideal: 1280, max: 1920 },
+          height: { ideal: 720, max: 1080 }
         },
       };
 
@@ -110,11 +117,10 @@ const BarcodeScanner = ({ onScan, onClose, continuous = false }: BarcodeScannerP
         if (isMounted.current && scanningStatusRef.current === "loading") {
           setShowRetry(true);
         }
-      }, 7000);
+      }, 5000); // Reduced to 5s for faster feedback on iOS
 
       if (videoRef.current) {
-        // Direct stream access works better in PWA standalone mode
-        // It separates the "Asking for permission" step from the "Barcode reader" initialization
+        // Direct stream access
         const stream = await navigator.mediaDevices.getUserMedia(constraints);
 
         if (!isMounted.current) {
@@ -125,26 +131,29 @@ const BarcodeScanner = ({ onScan, onClose, continuous = false }: BarcodeScannerP
         streamRef.current = stream;
         videoRef.current.srcObject = stream;
 
-        // Ensure the video is actually playing before starting the decoder
-        // Some mobile browsers in PWA mode pause video if it hasn't started with user intervention
+        // CRITICAL FOR iOS PWA: 
+        // We MUST attempt to play and catch any block. 
+        // If it blocks, we'll need the user to tap to manually start it.
         try {
           await videoRef.current.play();
+          setPermissionState('granted');
         } catch (playError) {
-          console.error("Video play error:", playError);
-          // Auto-play might be blocked even if muted/playsInline; 
-          // Attempting to proceed as reader might still work or trigger UI updates
+          console.error("Video play error (likely blocked by iOS PWA policy):", playError);
+          // If playback is blocked, it means iOS didn't consider our mount as a direct enough gesture.
+          // The UI will show the "Tap to retry" or we can show a specific "Start Camera" button.
+          setShowRetry(true);
+          return; // Stop here and wait for retry intervention
         }
 
         if (retryTimeout) clearTimeout(retryTimeout);
 
-        // Use decodeFromVideoElement which is generally more stable after stream is active
+        // Start decoding from the already-playing element
         const controls = await reader.decodeFromVideoElement(videoRef.current, scanCallback);
 
         if (isMounted.current) {
           controlsRef.current = controls;
           setHasCamera(true);
           setScanningStatus("scanning");
-          setPermissionState('granted');
         } else {
           controls.stop();
           stream.getTracks().forEach(track => track.stop());
@@ -158,7 +167,7 @@ const BarcodeScanner = ({ onScan, onClose, continuous = false }: BarcodeScannerP
         setScanningStatus("error");
       }
     }
-  }, []);
+  }, [stopCamera]);
 
   useEffect(() => {
     isMounted.current = true;
@@ -265,9 +274,9 @@ const BarcodeScanner = ({ onScan, onClose, continuous = false }: BarcodeScannerP
               {showRetry && (
                 <button
                   onClick={handleRetry}
-                  className="mt-6 text-xs bg-primary text-primary-foreground px-4 py-2 rounded-lg font-medium shadow-sm active:scale-95 transition-all"
+                  className="mt-6 text-xs bg-primary text-primary-foreground px-4 py-2 rounded-lg font-medium shadow-sm active:scale-95 transition-all animate-pulse"
                 >
-                  Taking too long? Tap to retry
+                  Tap to Start Camera
                 </button>
               )}
             </div>
@@ -285,6 +294,7 @@ const BarcodeScanner = ({ onScan, onClose, continuous = false }: BarcodeScannerP
                 className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${scanningStatus === "loading" ? "opacity-0" : "opacity-100"}`}
                 playsInline
                 muted
+                autoPlay
               />
 
               {scanningStatus !== "loading" && hasCamera && (
