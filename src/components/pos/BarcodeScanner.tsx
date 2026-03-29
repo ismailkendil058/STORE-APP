@@ -27,8 +27,15 @@ const BarcodeScanner = ({ onScan, onClose, continuous = false }: BarcodeScannerP
   }, [scanningStatus]);
 
   const isMounted = useRef(true);
+  const streamRef = useRef<MediaStream | null>(null);
 
   const stopCamera = useCallback(() => {
+    // Stop all tracks in the stream manually for more robust cleanup
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+    }
+
     if (controlsRef.current) {
       controlsRef.current.stop();
       controlsRef.current = null;
@@ -42,13 +49,13 @@ const BarcodeScanner = ({ onScan, onClose, continuous = false }: BarcodeScannerP
     let retryTimeout: NodeJS.Timeout | null = null;
 
     try {
-      // Small delay to ensure DOM is ready
-      await new Promise(resolve => setTimeout(resolve, 200));
+      // Small delay to ensure DOM is ready and any previous stream is fully cleared
+      await new Promise(resolve => setTimeout(resolve, 300));
 
       if (!isMounted.current) return;
 
       // Check for permission first if API is available
-      if (navigator.permissions && navigator.permissions.query) {
+      if (typeof navigator !== 'undefined' && navigator.permissions && navigator.permissions.query) {
         try {
           const result = await navigator.permissions.query({ name: 'camera' as PermissionName });
           setPermissionState(result.state);
@@ -106,8 +113,32 @@ const BarcodeScanner = ({ onScan, onClose, continuous = false }: BarcodeScannerP
       }, 7000);
 
       if (videoRef.current) {
-        const controls = await reader.decodeFromConstraints(constraints, videoRef.current, scanCallback);
+        // Direct stream access works better in PWA standalone mode
+        // It separates the "Asking for permission" step from the "Barcode reader" initialization
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+
+        if (!isMounted.current) {
+          stream.getTracks().forEach(track => track.stop());
+          return;
+        }
+
+        streamRef.current = stream;
+        videoRef.current.srcObject = stream;
+
+        // Ensure the video is actually playing before starting the decoder
+        // Some mobile browsers in PWA mode pause video if it hasn't started with user intervention
+        try {
+          await videoRef.current.play();
+        } catch (playError) {
+          console.error("Video play error:", playError);
+          // Auto-play might be blocked even if muted/playsInline; 
+          // Attempting to proceed as reader might still work or trigger UI updates
+        }
+
         if (retryTimeout) clearTimeout(retryTimeout);
+
+        // Use decodeFromVideoElement which is generally more stable after stream is active
+        const controls = await reader.decodeFromVideoElement(videoRef.current, scanCallback);
 
         if (isMounted.current) {
           controlsRef.current = controls;
@@ -116,6 +147,7 @@ const BarcodeScanner = ({ onScan, onClose, continuous = false }: BarcodeScannerP
           setPermissionState('granted');
         } else {
           controls.stop();
+          stream.getTracks().forEach(track => track.stop());
         }
       }
     } catch (err) {
