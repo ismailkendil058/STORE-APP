@@ -24,7 +24,7 @@ const AppContent = () => {
   useEffect(() => {
     const isAdminPath = location.pathname === '/admin/login' || location.pathname.startsWith('/admin/');
     const manifestPath = isAdminPath ? '/sa-admin.json' : '/sa-worker.json';
-    const appTitle = isAdminPath ? 'PORTAL ADMIN' : 'STORE APP';
+    const appTitle = isAdminPath ? 'SA admin' : 'SA worker';
 
     // Update Manifest Link
     const updateManifest = () => {

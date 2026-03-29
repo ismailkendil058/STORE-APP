@@ -28,13 +28,16 @@ const WorkerLogin = () => {
   const authenticateWorker = async (workerPin: string) => {
     setLoading(true);
     try {
-      const { data, error: fnError } = await supabase.rpc("authenticate_worker", {
+      // @ts-ignore
+      const { data, error: fnError } = await (supabase.rpc as any)("authenticate_worker", {
         p_pin: workerPin,
       });
+      // @ts-ignore
       if (fnError || data?.error) {
         setError("رمز PIN غير صالح");
         setPin("");
       } else {
+        // @ts-ignore
         sessionStorage.setItem("worker", JSON.stringify(data.worker));
         navigate("/pos");
       }
@@ -68,8 +71,8 @@ const WorkerLogin = () => {
               key={i}
               animate={{ scale: pin.length > i ? 1 : 0.8 }}
               className={`w-4 h-4 rounded-full border-2 transition-colors duration-200 ${pin.length > i
-                  ? "bg-foreground border-foreground"
-                  : "border-muted-foreground/30"
+                ? "bg-foreground border-foreground"
+                : "border-muted-foreground/30"
                 }`}
             />
           ))}
@@ -107,6 +110,8 @@ const WorkerLogin = () => {
                   whileTap={{ scale: 0.92 }}
                   onClick={() => handleDigit(d)}
                   disabled={loading}
+                  lang="en"
+                  style={{ fontFamily: "'Outfit', sans-serif" }}
                   className="w-full aspect-square rounded-2xl bg-secondary text-foreground text-xl font-medium hover:bg-accent transition-colors flex items-center justify-center"
                 >
                   {d}

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/web-manifest",
-  "name": "Alimentation Issam Admin",
-  "short_name": "Issam Admin",
+  "name": "SA admin",
+  "short_name": "SA admin",
   "description": "Premium Portal for Admin Management",
   "start_url": "/admin/login",
   "scope": "/admin/",

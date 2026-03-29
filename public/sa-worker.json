@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/web-manifest",
-  "name": "Alimentation Issam",
-  "short_name": "Alimentation Issam",
+  "name": "SA worker",
+  "short_name": "SA worker",
   "description": "Premium Grocery Store POS",
   "start_url": "/",
   "scope": "/",
