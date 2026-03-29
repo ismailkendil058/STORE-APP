@@ -17,6 +17,16 @@ const BarcodeScanner = ({ onScan, onClose, continuous = false }: BarcodeScannerP
 
   const [hasCamera, setHasCamera] = useState<boolean>(true);
   const [scanningStatus, setScanningStatus] = useState<"scanning" | "success" | "loading" | "error">("loading");
+  const [permissionState, setPermissionState] = useState<PermissionState | 'unknown'>('unknown');
+  const [showRetry, setShowRetry] = useState(false);
+  const scanningStatusRef = useRef<string>("loading");
+
+  // Keep ref in sync with state
+  useEffect(() => {
+    scanningStatusRef.current = scanningStatus;
+  }, [scanningStatus]);
+
+  const isMounted = useRef(true);
 
   const stopCamera = useCallback(() => {
     if (controlsRef.current) {
@@ -26,73 +36,111 @@ const BarcodeScanner = ({ onScan, onClose, continuous = false }: BarcodeScannerP
   }, []);
 
   const initCamera = useCallback(async () => {
-    let mounted = true;
     setScanningStatus("loading");
+    setShowRetry(false);
 
-    // Configuration for high accuracy and difficult barcodes
-    // EAN_13 is the standard for Algerian GS1 barcodes (startsWith 613)
-    const hints = new Map();
-    hints.set(DecodeHintType.TRY_HARDER, true);
-    hints.set(DecodeHintType.POSSIBLE_FORMATS, [
-      BarcodeFormat.EAN_13, // GS1 Algeria (613)
-      BarcodeFormat.EAN_8,
-      BarcodeFormat.QR_CODE,
-      BarcodeFormat.UPC_A,
-      BarcodeFormat.UPC_E,
-      BarcodeFormat.CODE_128, // GS1-128
-      BarcodeFormat.CODE_39,
-      BarcodeFormat.CODE_93,
-      BarcodeFormat.CODABAR,
-      BarcodeFormat.ITF,
-    ]);
-
-    const reader = new BrowserMultiFormatReader(hints);
+    let retryTimeout: NodeJS.Timeout | null = null;
 
     try {
-      // By skipping listVideoInputDevices, we instantly request the camera, which is significantly faster.
+      // Small delay to ensure DOM is ready
+      await new Promise(resolve => setTimeout(resolve, 200));
+
+      if (!isMounted.current) return;
+
+      // Check for permission first if API is available
+      if (navigator.permissions && navigator.permissions.query) {
+        try {
+          const result = await navigator.permissions.query({ name: 'camera' as PermissionName });
+          setPermissionState(result.state);
+
+          if (result.state === 'denied' && isMounted.current) {
+            setHasCamera(false);
+            setScanningStatus("error");
+            return;
+          }
+
+          result.onchange = () => {
+            if (isMounted.current) setPermissionState(result.state);
+          };
+        } catch (e) {
+          console.log("Permission query not supported", e);
+        }
+      }
+
+      const hints = new Map();
+      hints.set(DecodeHintType.TRY_HARDER, true);
+      hints.set(DecodeHintType.POSSIBLE_FORMATS, [
+        BarcodeFormat.EAN_13,
+        BarcodeFormat.EAN_8,
+        BarcodeFormat.QR_CODE,
+        BarcodeFormat.UPC_A,
+        BarcodeFormat.UPC_E,
+        BarcodeFormat.CODE_128,
+        BarcodeFormat.CODE_39,
+        BarcodeFormat.CODE_93,
+        BarcodeFormat.CODABAR,
+        BarcodeFormat.ITF,
+      ]);
+
+      const reader = new BrowserMultiFormatReader(hints);
+
       const constraints: MediaStreamConstraints = {
         video: {
           facingMode: { ideal: "environment" },
-          width: { ideal: 720 }, // Lowered from 1280 to 720 for instantly fast loading on mobile
-          height: { ideal: 480 },
-          advanced: [{ focusMode: "continuous" } as any],
+          width: { ideal: 720 },
+          height: { ideal: 480 }
         },
       };
 
       const scanCallback = (result: any, err: any) => {
-        if (result && mounted) {
+        if (result && isMounted.current) {
           handleSuccess(result.getText());
         }
       };
 
+      // Set a timeout to show retry if it takes too long
+      retryTimeout = setTimeout(() => {
+        if (isMounted.current && scanningStatusRef.current === "loading") {
+          setShowRetry(true);
+        }
+      }, 7000);
+
       if (videoRef.current) {
-        // Direct request to constraints without Device ID lookup overhead
         const controls = await reader.decodeFromConstraints(constraints, videoRef.current, scanCallback);
-        if (mounted) {
+        if (retryTimeout) clearTimeout(retryTimeout);
+
+        if (isMounted.current) {
           controlsRef.current = controls;
           setHasCamera(true);
           setScanningStatus("scanning");
+          setPermissionState('granted');
         } else {
           controls.stop();
         }
       }
     } catch (err) {
       console.error("Scanner init error:", err);
-      if (mounted) {
+      if (retryTimeout) clearTimeout(retryTimeout);
+      if (isMounted.current) {
         setHasCamera(false);
         setScanningStatus("error");
       }
     }
-
-    return () => { mounted = false; };
   }, []);
 
   useEffect(() => {
+    isMounted.current = true;
     initCamera();
+
     return () => {
+      isMounted.current = false;
       stopCamera();
     };
   }, [initCamera, stopCamera]);
+
+  const handleRetry = () => {
+    initCamera();
+  };
 
   const handleSuccess = (decodedText: string) => {
     if (isPaused.current) return;
@@ -124,17 +172,20 @@ const BarcodeScanner = ({ onScan, onClose, continuous = false }: BarcodeScannerP
 
     if (continuous) {
       setTimeout(() => {
-        if (isPaused.current) {
+        if (isPaused.current && isMounted.current) {
           setScanningStatus("scanning");
           isPaused.current = false;
         }
       }, 1200);
     } else {
-      setTimeout(() => onClose(), 600); // Wait a bit for success animation
+      setTimeout(() => {
+        if (isMounted.current) onClose();
+      }, 600); // Wait a bit for success animation
     }
   };
 
   const handleClose = () => {
+    isMounted.current = false;
     stopCamera();
     onClose();
   };
@@ -144,13 +195,13 @@ const BarcodeScanner = ({ onScan, onClose, continuous = false }: BarcodeScannerP
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex md:items-center items-end justify-center md:p-4 pb-0"
+      className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
     >
       <motion.div
         initial={{ y: 50, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ type: "spring", damping: 25, stiffness: 300 }}
-        className="bg-background w-full max-w-md md:rounded-[24px] rounded-t-[24px] md:rounded-b-[24px] shadow-2xl overflow-hidden flex flex-col border border-border/50"
+        className="bg-background w-full max-w-md md:rounded-[24px] rounded-[24px] shadow-2xl overflow-hidden flex flex-col border border-border/50"
       >
         <div className="flex items-center justify-between px-6 py-4 border-b">
           <div>
@@ -170,8 +221,23 @@ const BarcodeScanner = ({ onScan, onClose, continuous = false }: BarcodeScannerP
           {scanningStatus === "loading" && (
             <div className="flex flex-col items-center justify-center text-muted-foreground p-8 text-center">
               <Loader2 className="w-8 h-8 animate-spin mb-4 text-primary" />
-              <p className="text-sm font-medium">Accessing camera...</p>
-              <p className="text-xs mt-2 opacity-70">Please allow camera permissions if prompted</p>
+              <p className="text-sm font-medium">
+                {permissionState === 'prompt' ? "Camera access requested..." : "Initializing camera..."}
+              </p>
+              <p className="text-xs mt-2 opacity-70">
+                {permissionState === 'prompt'
+                  ? "Please click 'Allow' in the browser prompt to start scanning."
+                  : "Setting up the scanner. This usually takes just a second."}
+              </p>
+
+              {showRetry && (
+                <button
+                  onClick={handleRetry}
+                  className="mt-6 text-xs bg-primary text-primary-foreground px-4 py-2 rounded-lg font-medium shadow-sm active:scale-95 transition-all"
+                >
+                  Taking too long? Tap to retry
+                </button>
+              )}
             </div>
           )}
 
@@ -235,8 +301,8 @@ const BarcodeScanner = ({ onScan, onClose, continuous = false }: BarcodeScannerP
           {scanningStatus !== "loading" && hasCamera && (
             <div className="absolute bottom-4 z-20">
               <div className={`px-4 py-1.5 rounded-full backdrop-blur-md text-xs font-semibold shadow-lg transition-colors ${scanningStatus === "success"
-                  ? "bg-green-500/90 text-white"
-                  : "bg-black/60 text-white"
+                ? "bg-green-500/90 text-white"
+                : "bg-black/60 text-white"
                 }`}>
                 {scanningStatus === "success" ? "Valid Barcode Detected" : "Position barcode within frame"}
               </div>
