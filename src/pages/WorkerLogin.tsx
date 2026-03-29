@@ -28,8 +28,8 @@ const WorkerLogin = () => {
   const authenticateWorker = async (workerPin: string) => {
     setLoading(true);
     try {
-      const { data, error: fnError } = await supabase.functions.invoke("worker-auth", {
-        body: { pin: workerPin },
+      const { data, error: fnError } = await supabase.rpc("authenticate_worker", {
+        p_pin: workerPin,
       });
       if (fnError || data?.error) {
         setError("رمز PIN غير صالح");
@@ -57,7 +57,7 @@ const WorkerLogin = () => {
       >
         <div className="text-center mb-10">
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-            Luxury Parfume
+            STORE APP
           </h1>
           <p className="text-sm text-muted-foreground mt-2">أدخل رمز PIN الخاص بك للمتابعة</p>
         </div>

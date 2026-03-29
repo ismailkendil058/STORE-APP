@@ -39,7 +39,7 @@ const AdminLayout = () => {
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <header className="px-4 py-3 border-b border-border flex items-center justify-between sticky top-0 bg-background z-30">
-        <h1 className="font-semibold tracking-tight">Luxury Parfume</h1>
+        <h1 className="font-semibold tracking-tight">STORE APP</h1>
         <button onClick={handleLogout} className="p-2 hover:bg-secondary rounded-xl">
           <LogOut className="w-4 h-4" />
         </button>

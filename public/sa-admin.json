@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json.schemastore.org/web-manifest",
+  "name": "PORTAL ADMIN",
+  "short_name": "PORTAL ADMIN",
+  "description": "Premium Portal for Admin Management",
+  "start_url": "/admin/login",
+  "scope": "/admin/",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#000000",
+  "orientation": "portrait",
+  "lang": "ar",
+  "dir": "rtl",
+  "icons": [
+    {
+      "src": "/store-icon.jpg",
+      "sizes": "192x192 512x512",
+      "type": "image/jpeg",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -15,7 +15,8 @@ const AdminLogin = () => {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const loginEmail = email.endsWith('@gmail.com') ? email : `${email}@gmail.com`;
+    const { error } = await supabase.auth.signInWithPassword({ email: loginEmail, password });
     if (error) {
       toast.error("بيانات الاعتماد غير صالحة");
     } else {
@@ -33,13 +34,13 @@ const AdminLogin = () => {
       >
         <div className="text-center mb-8">
           <h1 className="text-2xl font-semibold tracking-tight">لوحة تحكم المسؤول</h1>
-          <p className="text-sm text-muted-foreground mt-1">Luxury Parfume</p>
+          <p className="text-sm text-muted-foreground mt-1">STORE APP</p>
         </div>
 
         <form onSubmit={handleLogin} className="space-y-4">
           <Input
-            type="email"
-            placeholder="البريد الإلكتروني"
+            type="text"
+            placeholder="اسم المستخدم (مثال: admin)"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             className="h-12 rounded-xl"
