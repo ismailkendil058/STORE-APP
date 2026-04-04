@@ -19,6 +19,7 @@ const BarcodeScanner = ({ onScan, onClose, continuous = false }: BarcodeScannerP
   const [scanningStatus, setScanningStatus] = useState<"scanning" | "success" | "loading" | "error">("loading");
   const [permissionState, setPermissionState] = useState<PermissionState | 'unknown'>('unknown');
   const [showRetry, setShowRetry] = useState(false);
+  const [detailedError, setDetailedError] = useState<string>("");
   const scanningStatusRef = useRef<string>("loading");
 
   // Keep ref in sync with state
@@ -52,25 +53,16 @@ const BarcodeScanner = ({ onScan, onClose, continuous = false }: BarcodeScannerP
     let retryTimeout: NodeJS.Timeout | null = null;
 
     try {
-      // Ensure we clean up any previous stream/controls first
       stopCamera();
+      setDetailedError("");
 
-      // Removed 300ms delay to ensure the request is physically closer to the user gesture (mount button click)
       if (!isMounted.current) return;
 
-      // Simple detection for Apple's specific requirements
-      const isIOSPWA = /iPad|iPhone|iPod/.test(navigator.userAgent) &&
-        ((window as any).navigator?.standalone || window.matchMedia('(display-mode: standalone)').matches);
-
-      if (typeof navigator !== 'undefined' && navigator.permissions && navigator.permissions.query) {
-        try {
-          const result = await navigator.permissions.query({ name: 'camera' as PermissionName });
-          setPermissionState(result.state);
-          // Android Chrome sometimes incorrectly reports 'denied' or has issues with early returns here
-          // We let getUserMedia naturally handle the real permission boundary.
-        } catch (e) {
-          console.log("Permission query not supported", e);
-        }
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        setDetailedError("Media Devices API totally missing, make sure you are on HTTPS.");
+        setHasCamera(false);
+        setScanningStatus("error");
+        return;
       }
 
       const hints = new Map();
@@ -90,29 +82,62 @@ const BarcodeScanner = ({ onScan, onClose, continuous = false }: BarcodeScannerP
 
       const reader = new BrowserMultiFormatReader(hints);
 
-      // Basic constraints that work consistently across Android and iOS
-      const constraints: MediaStreamConstraints = {
-        video: {
-          facingMode: "environment"
-        },
-      };
-
       const scanCallback = (result: any, err: any) => {
         if (result && isMounted.current) {
           handleSuccess(result.getText());
         }
       };
 
-      // Set a timeout to show retry if it takes too long
       retryTimeout = setTimeout(() => {
         if (isMounted.current && scanningStatusRef.current === "loading") {
           setShowRetry(true);
         }
-      }, 5000); // Reduced to 5s for faster feedback on iOS
+      }, 5000);
 
       if (videoRef.current) {
-        // Direct stream access
-        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        let stream: MediaStream | null = null;
+        let finalErrorCapture: any = null;
+
+        try {
+          // Robust Fallback Chain #1: Enumerate Devices First (Ideal for Android Chrome)
+          const devices = await navigator.mediaDevices.enumerateDevices().catch(() => []);
+          const videoDevices = devices.filter(device => device.kind === 'videoinput');
+
+          if (videoDevices.length > 0) {
+            // Find a rear/back camera specifically
+            const rearCamera = videoDevices.find(d =>
+              d.label.toLowerCase().includes('back') ||
+              d.label.toLowerCase().includes('rear') ||
+              d.label.toLowerCase().includes('environment')
+            );
+
+            if (rearCamera) {
+              try {
+                stream = await navigator.mediaDevices.getUserMedia({
+                  video: { deviceId: { exact: rearCamera.deviceId } }
+                });
+              } catch (e: any) { finalErrorCapture = e; }
+            }
+          }
+        } catch (e: any) { finalErrorCapture = e; }
+
+        // Fallback Chain #2: Standard Environment constraint
+        if (!stream) {
+          try {
+            stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+          } catch (err1: any) {
+            finalErrorCapture = err1;
+            // Fallback Chain #3: Any video constraint
+            try {
+              stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            } catch (err2: any) {
+              finalErrorCapture = err2;
+              throw finalErrorCapture; // Totally failed
+            }
+          }
+        }
+
+        if (!stream) throw new Error("Stream object is null.");
 
         if (!isMounted.current) {
           stream.getTracks().forEach(track => track.stop());
@@ -122,30 +147,23 @@ const BarcodeScanner = ({ onScan, onClose, continuous = false }: BarcodeScannerP
         streamRef.current = stream;
         videoRef.current.srcObject = stream;
 
-        // CRITICAL FOR iOS PWA: 
-        // We MUST attempt to play and catch any block. 
-        // If it blocks, we'll need the user to tap to manually start it.
         try {
           await videoRef.current.play();
           setPermissionState('granted');
 
-          // CRITICAL UX FIX:
-          // Set scanning status to "scanning" AS SOON AS the video starts playing.
-          // This removes the "Accessing camera..." overlay and shows the camera feed.
-          // This way, the user sees it's working even if zxing is still warming up.
           if (isMounted.current) {
             setScanningStatus("scanning");
             setHasCamera(true);
           }
         } catch (playError) {
-          console.error("Video play error (likely blocked by iOS PWA policy):", playError);
+          console.error("Video play error:", playError);
+          setDetailedError(String(playError));
           setShowRetry(true);
-          return; // Stop here and wait for retry intervention
+          return;
         }
 
         if (retryTimeout) clearTimeout(retryTimeout);
 
-        // Now start the barcode decoder in the background
         try {
           const controls = await reader.decodeFromVideoElement(videoRef.current, scanCallback);
           if (isMounted.current) {
@@ -156,12 +174,15 @@ const BarcodeScanner = ({ onScan, onClose, continuous = false }: BarcodeScannerP
           }
         } catch (decoderError) {
           console.error("Scanner decoder error:", decoderError);
-          // If decoder fails but video is playing, we can stay in "scanning" but maybe show a subtle error
-          // or just let the retry mechanism handle it if it truly doesn't work.
         }
       }
-    } catch (err) {
-      console.error("Scanner init error:", err);
+    } catch (err: any) {
+      console.error("Scanner init final error:", err);
+      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+        setPermissionState('denied');
+      }
+      setDetailedError(`[${err.name || 'Error'}] ${err.message || 'Check site settings to reset camera permissions.'}`);
+
       if (retryTimeout) clearTimeout(retryTimeout);
       if (isMounted.current) {
         setHasCamera(false);
@@ -285,8 +306,81 @@ const BarcodeScanner = ({ onScan, onClose, continuous = false }: BarcodeScannerP
 
           {!hasCamera && scanningStatus !== "loading" ? (
             <div className="flex flex-col items-center justify-center text-muted-foreground p-8 text-center">
-              <p className="text-sm font-medium text-destructive">Camera unavailable</p>
-              <p className="text-xs mt-2 opacity-70">Please check your device permissions or use manual entry on the product form.</p>
+              <p className="text-sm font-medium text-destructive">Live Camera Unavailable</p>
+              <p className="text-xs mt-2 opacity-70">
+                {!navigator.mediaDevices ? "HTTPS connection is required to access the live camera. " : ""}
+                Please check your device permissions or use native fallback. {detailedError && <span className="block mt-2 text-[10px] text-red-500 font-mono bg-red-500/10 p-2 rounded-md border border-red-500/20">{detailedError}</span>}
+              </p>
+
+              <div className="mt-6 w-full flex flex-col gap-3">
+
+                {permissionState === 'denied' || detailedError.includes('NotAllowedError') ? (
+                  <button
+                    onClick={() => {
+                      setHasCamera(true);
+                      setPermissionState('unknown');
+                      initCamera();
+                    }}
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 rounded-xl font-medium text-sm shadow-sm active:scale-95 transition-all flex items-center justify-center gap-2"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" /><circle cx="12" cy="13" r="4" /></svg>
+                    Start Camera Manually
+                  </button>
+                ) : null}
+
+                <div className="relative flex items-center py-2">
+                  <div className="flex-grow border-t border-muted-foreground/20"></div>
+                  <span className="flex-shrink-0 mx-4 text-muted-foreground text-xs opacity-70">OR</span>
+                  <div className="flex-grow border-t border-muted-foreground/20"></div>
+                </div>
+
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  id="native-camera-fallback"
+                  className="hidden"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    setScanningStatus("loading");
+                    setDetailedError("Processing image...");
+
+                    try {
+                      const hints = new Map();
+                      hints.set(DecodeHintType.TRY_HARDER, true);
+                      const reader = new BrowserMultiFormatReader(hints);
+
+                      const imageUrl = URL.createObjectURL(file);
+                      const img = new Image();
+                      img.src = imageUrl;
+                      await new Promise((resolve, reject) => {
+                        img.onload = resolve;
+                        img.onerror = reject;
+                      });
+
+                      const result = await reader.decodeFromImageElement(img);
+                      URL.revokeObjectURL(imageUrl);
+
+                      if (isMounted.current) {
+                        handleSuccess(result.getText());
+                      }
+                    } catch (err) {
+                      if (isMounted.current) {
+                        setDetailedError("No barcode found in image. Try again or use manual entry.");
+                        setScanningStatus("error");
+                      }
+                    }
+                  }}
+                />
+                <label
+                  htmlFor="native-camera-fallback"
+                  className="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-3 rounded-xl font-medium text-sm shadow-sm active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-2"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z" /><circle cx="12" cy="13" r="3" /></svg>
+                  Take Photo of Barcode
+                </label>
+              </div>
             </div>
           ) : (
             <>
