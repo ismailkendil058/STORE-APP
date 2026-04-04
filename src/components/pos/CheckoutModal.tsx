@@ -11,10 +11,6 @@ interface CheckoutModalProps {
 }
 
 const CheckoutModal = ({ open, onClose, total, onConfirm }: CheckoutModalProps) => {
-  const [paid, setPaid] = useState("");
-  const paidAmount = Number(paid) || 0;
-  const change = paidAmount - total;
-
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-sm mx-auto rounded-2xl">
@@ -30,34 +26,10 @@ const CheckoutModal = ({ open, onClose, total, onConfirm }: CheckoutModalProps) 
             </p>
           </div>
 
-          <div>
-            <label className="text-sm text-muted-foreground mb-1 block">المبلغ المستلم</label>
-            <Input
-              type="number"
-              inputMode="numeric"
-              placeholder="0"
-              value={paid}
-              onChange={(e) => setPaid(e.target.value)}
-              className="h-12 rounded-xl text-lg text-center font-semibold"
-              autoFocus
-            />
-          </div>
-
-          {paidAmount > 0 && (
-            <div className="text-center">
-              <p className="text-sm text-muted-foreground">الباقي</p>
-              <p className={`text-2xl font-bold tabular-nums ${change >= 0 ? "text-foreground" : "text-destructive"}`}>
-                {change >= 0 ? change.toLocaleString() : "—"} دج
-              </p>
-            </div>
-          )}
-
           <Button
             onClick={() => {
               onConfirm();
-              setPaid("");
             }}
-            disabled={paidAmount < total}
             className="w-full h-12 rounded-xl text-base font-semibold"
           >
             تأكيد البيع

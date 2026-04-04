@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import type { CartItem, Product, Category, ProductSize, Session } from "@/types";
+import type { CartItem, Product, Category, Session } from "@/types";
 import SectionControl from "@/components/pos/SectionControl";
 import ProductSearch from "@/components/pos/ProductSearch";
 import CategoryCarousel from "@/components/pos/CategoryCarousel";
@@ -53,17 +53,47 @@ const WorkerPOS = () => {
   }, [worker]);
 
   const fetchProducts = async () => {
-    const { data } = await supabase.from("products").select("*, product_sizes(*)");
+    const { data, error } = await supabase.from("products").select("*");
+    if (error) {
+      console.error("Error fetching products:", error);
+      toast.error("خطأ في جلب المنتجات: " + error.message);
+    }
     if (data) setProducts(data as unknown as Product[]);
   };
 
   const fetchCategories = async () => {
-    const { data } = await supabase.from("categories").select("*");
+    const { data, error } = await supabase.from("categories").select("*");
+    if (error) console.error("Error fetching categories:", error);
     if (data) setCategories(data as unknown as Category[]);
   };
 
   const openSection = async () => {
     if (!worker) return;
+
+    // Get start of today in local timezone
+    const now = new Date();
+    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+
+    // Check if the worker already has a session today
+    const { data: existingSessions } = await supabase
+      .from("sessions")
+      .select("*")
+      .eq("worker_id", worker.id)
+      .gte("started_at", startOfDay)
+      .order("started_at", { ascending: false })
+      .limit(1);
+
+    if (existingSessions && existingSessions.length > 0) {
+      const sess = existingSessions[0];
+      // Reopen the existing daily session
+      await supabase.from("sessions").update({ closed_at: null }).eq("id", sess.id);
+      sess.closed_at = null;
+      setSession(sess as unknown as Session);
+      setSectionRevenue(Number(sess.total_revenue) || 0);
+      toast.success("تم استئناف الجلسة اليومية");
+      return;
+    }
+
     const { data, error } = await supabase
       .from("sessions")
       .insert({ worker_id: worker.id })
@@ -89,7 +119,7 @@ const WorkerPOS = () => {
     toast.success("تم إغلاق الجلسة");
   };
 
-  const addToCart = useCallback((product: Product, size?: ProductSize, customAmount?: number) => {
+  const addToCart = useCallback((product: Product, customAmount?: number) => {
     setCart((prev) => {
       if (customAmount) {
         const existingCustom = prev.find(
@@ -108,34 +138,32 @@ const WorkerPOS = () => {
           );
         }
         const quantity = customAmount / product.selling_price;
-        return [...prev, { product, quantity, selectedSize: undefined, customAmountDa: customAmount }];
+        return [...prev, { product, quantity, customAmountDa: customAmount }];
       }
 
       const existing = prev.find(
-        (item) => item.product.id === product.id && item.selectedSize?.id === size?.id && !item.customAmountDa
+        (item) => item.product.id === product.id && !item.customAmountDa
       );
       if (existing) {
         return prev.map((item) =>
-          item.product.id === product.id && item.selectedSize?.id === size?.id && !item.customAmountDa
+          item.product.id === product.id && !item.customAmountDa
             ? { ...item, quantity: item.quantity + 1 }
             : item
         );
       }
-      return [...prev, { product, quantity: 1, selectedSize: size }];
+      return [...prev, { product, quantity: 1 }];
     });
   }, []);
 
-  const updateCartQuantity = (productId: string, sizeId: string | undefined, quantity: number) => {
+  const updateCartQuantity = (productId: string, quantity: number) => {
     if (quantity <= 0) {
       setCart((prev) =>
-        prev.filter(
-          (item) => !(item.product.id === productId && item.selectedSize?.id === sizeId)
-        )
+        prev.filter((item) => item.product.id !== productId)
       );
     } else {
       setCart((prev) =>
         prev.map((item) =>
-          item.product.id === productId && item.selectedSize?.id === sizeId
+          item.product.id === productId
             ? { ...item, quantity }
             : item
         )
@@ -145,13 +173,13 @@ const WorkerPOS = () => {
 
   const cartTotal = cart.reduce((sum, item) => {
     if (item.customAmountDa) return sum + item.customAmountDa;
-    const price = item.selectedSize ? item.selectedSize.selling_price : item.product.selling_price;
+    const price = item.product.selling_price;
     return sum + price * item.quantity;
   }, 0);
 
   const cartProfit = cart.reduce((sum, item) => {
-    const sell = item.selectedSize ? item.selectedSize.selling_price : item.product.selling_price;
-    const buy = item.selectedSize ? item.selectedSize.purchase_price : item.product.purchase_price;
+    const sell = item.product.selling_price;
+    const buy = item.product.purchase_price;
     return sum + (sell - buy) * item.quantity;
   }, 0);
 
@@ -175,10 +203,10 @@ const WorkerPOS = () => {
       sale_id: sale.id,
       product_id: item.product.id,
       product_name: item.product.name,
-      size_kg: item.selectedSize?.size_kg || null,
+      size_kg: null,
       quantity: item.quantity,
-      unit_price: item.selectedSize ? item.selectedSize.selling_price : item.product.selling_price,
-      purchase_price: item.selectedSize ? item.selectedSize.purchase_price : item.product.purchase_price,
+      unit_price: item.product.selling_price,
+      purchase_price: item.product.purchase_price,
     }));
 
     await supabase.from("sale_items").insert(items);

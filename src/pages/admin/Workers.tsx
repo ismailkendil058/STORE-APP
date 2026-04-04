@@ -14,6 +14,7 @@ const AdminWorkers = () => {
   const [editing, setEditing] = useState<any>(null);
   const [name, setName] = useState("");
   const [pin, setPin] = useState("");
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => { fetchWorkers(); }, []);
 
@@ -35,15 +36,15 @@ const AdminWorkers = () => {
   };
 
   const handleSave = async () => {
-    if (!name || pin.length !== 4) {
-      toast.error("الاسم ورمز PIN المكون من 4 أرقام مطلوبان");
+    if (!name || pin.length < 4) {
+      toast.error("الاسم ورمز PIN مطلوبان (على الأقل 4 أرقام)");
       return;
     }
     if (editing) {
-      const { error } = await supabase.from("workers").update({ name, pin }).eq("id", editing.id);
+      const { error } = await supabase.from("workers").update({ name, pin, is_admin: isAdmin }).eq("id", editing.id);
       if (error) { toast.error("فشل التحديث"); return; }
     } else {
-      const { error } = await supabase.from("workers").insert({ name, pin });
+      const { error } = await supabase.from("workers").insert({ name, pin, is_admin: isAdmin });
       if (error) { toast.error("فشل الإنشاء"); return; }
     }
     setShowDialog(false);
@@ -65,6 +66,7 @@ const AdminWorkers = () => {
     setEditing(worker);
     setName(worker.name);
     setPin(worker.pin);
+    setIsAdmin(worker.is_admin || false);
     setShowDialog(true);
   };
 
@@ -88,8 +90,13 @@ const AdminWorkers = () => {
             <Card key={w.id} className="rounded-2xl luxury-shadow border-border/50">
               <CardContent className="p-4 flex items-center justify-between">
                 <div>
-                  <p className="font-medium">{w.name}</p>
-                  <p className="text-xs text-muted-foreground">
+                  <div className="flex items-center gap-2">
+                    <p className="font-medium">{w.name}</p>
+                    {w.is_admin && (
+                      <span className="bg-primary/20 text-primary text-[10px] px-2 py-0.5 rounded-full font-bold">مسؤول</span>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-0.5">
                     {stat?.sessions || 0} جلسات · {(stat?.revenue || 0).toLocaleString()} دج إجمالي
                   </p>
                 </div>
@@ -97,7 +104,11 @@ const AdminWorkers = () => {
                   <button onClick={() => openEdit(w)} className="p-2 hover:bg-secondary rounded-xl">
                     <Pencil className="w-4 h-4" />
                   </button>
-                  <button onClick={() => handleDelete(w.id)} className="p-2 hover:bg-secondary rounded-xl text-destructive">
+                  <button
+                    onClick={() => handleDelete(w.id)}
+                    className="p-2 hover:bg-secondary rounded-xl text-destructive disabled:opacity-30"
+                    disabled={w.is_admin}
+                  >
                     <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
@@ -116,6 +127,7 @@ const AdminWorkers = () => {
           setEditing(null);
           setName("");
           setPin("");
+          setIsAdmin(false);
         }
       }}>
         <DialogContent className="max-w-sm rounded-2xl">
@@ -130,14 +142,22 @@ const AdminWorkers = () => {
               className="h-11 rounded-xl"
             />
             <Input
-              placeholder="رمز PIN من 4 أرقام"
+              placeholder="رمز PIN / كلمة المرور"
+              type="text"
               value={pin}
-              onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 4))}
-              maxLength={4}
-              inputMode="numeric"
+              onChange={(e) => setPin(e.target.value)}
               className="h-11 rounded-xl"
             />
-            <Button onClick={handleSave} className="w-full h-11 rounded-xl">
+            <label className="flex items-center gap-2 px-1 text-sm text-muted-foreground cursor-pointer">
+              <input
+                type="checkbox"
+                checked={isAdmin}
+                onChange={(e) => setIsAdmin(e.target.checked)}
+                className="rounded text-primary border-border"
+              />
+              إعطاء صلاحيات مسؤول
+            </label>
+            <Button onClick={handleSave} className="w-full h-11 rounded-xl mt-2">
               {editing ? "تحديث" : "إضافة عامل"}
             </Button>
           </div>

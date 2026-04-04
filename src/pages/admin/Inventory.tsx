@@ -9,7 +9,7 @@ const AdminInventory = () => {
 
   useEffect(() => {
     const fetchProducts = async () => {
-      const { data } = await supabase.from("products").select("*, product_sizes(*)").order("name");
+      const { data } = await supabase.from("products").select("*").order("name");
       if (data) setProducts(data);
     };
     fetchProducts();
@@ -57,11 +57,6 @@ const AdminInventory = () => {
                         </span>
                       )}
                     </div>
-                    {p.quantity_type === "kg" && p.product_sizes?.length > 0 && (
-                      <div className="text-xs text-muted-foreground mt-0.5">
-                        {p.product_sizes.map((s: any) => `${s.size_kg}kg: ${s.stock}`).join(" · ")}
-                      </div>
-                    )}
                   </td>
                   <td className="py-3 px-2 text-right tabular-nums">
                     {(p.quantity_type === "unit" || p.quantity_type === "kg") ? p.stock : "—"}

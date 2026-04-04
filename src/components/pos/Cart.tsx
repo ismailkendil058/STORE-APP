@@ -5,7 +5,7 @@ import { Minus, Plus } from "lucide-react";
 interface CartProps {
   items: CartItem[];
   total: number;
-  onUpdateQuantity: (productId: string, sizeId: string | undefined, quantity: number) => void;
+  onUpdateQuantity: (productId: string, quantity: number) => void;
   onCheckout: () => void;
 }
 
@@ -19,20 +19,19 @@ const Cart = ({ items, total, onUpdateQuantity, onCheckout }: CartProps) => {
       <div className="max-w-lg mx-auto px-4 py-3">
         <div className="max-h-36 overflow-y-auto mb-3 space-y-2">
           {items.map((item) => {
-            const key = item.product.id + (item.selectedSize?.id || "") + (item.customAmountDa ? "_custom" : "");
-            const price = item.selectedSize ? item.selectedSize.selling_price : item.product.selling_price;
+            const key = item.product.id + (item.customAmountDa ? "_custom" : "");
+            const price = item.product.selling_price;
             return (
               <div key={key} className="flex items-center justify-between text-sm">
                 <div className="flex-1 min-w-0 mr-2">
                   <span className="text-foreground truncate block">
                     {item.product.name}
-                    {item.selectedSize && ` · ${item.selectedSize.size_kg}kg`}
                     {item.customAmountDa && ` · ${item.quantity.toFixed(3)}kg`}
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() => onUpdateQuantity(item.product.id, item.selectedSize?.id, item.customAmountDa ? 0 : item.quantity - 1)}
+                    onClick={() => onUpdateQuantity(item.product.id, item.customAmountDa ? 0 : item.quantity - 1)}
                     className="w-7 h-7 rounded-lg bg-secondary flex items-center justify-center active:scale-90 text-destructive"
                   >
                     <Minus className="w-3 h-3" />
@@ -42,7 +41,7 @@ const Cart = ({ items, total, onUpdateQuantity, onCheckout }: CartProps) => {
                   </span>
                   {!item.customAmountDa && (
                     <button
-                      onClick={() => onUpdateQuantity(item.product.id, item.selectedSize?.id, item.quantity + 1)}
+                      onClick={() => onUpdateQuantity(item.product.id, item.quantity + 1)}
                       className="w-7 h-7 rounded-lg bg-secondary flex items-center justify-center active:scale-90"
                     >
                       <Plus className="w-3 h-3" />

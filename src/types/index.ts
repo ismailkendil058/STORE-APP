@@ -1,6 +1,7 @@
 export interface Worker {
   id: string;
   name: string;
+  is_admin?: boolean;
   created_at: string;
 }
 
@@ -20,16 +21,6 @@ export interface Product {
   quantity_type: 'unit' | 'kg';
   stock: number;
   created_at: string;
-  product_sizes?: ProductSize[];
-}
-
-export interface ProductSize {
-  id: string;
-  product_id: string;
-  size_kg: number;
-  selling_price: number;
-  purchase_price: number;
-  stock: number;
 }
 
 export interface Session {
@@ -63,6 +54,5 @@ export interface SaleItem {
 export interface CartItem {
   product: Product;
   quantity: number;
-  selectedSize?: ProductSize;
   customAmountDa?: number;
 }

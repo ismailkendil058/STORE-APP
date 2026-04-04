@@ -15,11 +15,18 @@ const AdminLogin = () => {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    const loginEmail = email.endsWith('@gmail.com') ? email : `${email}@gmail.com`;
-    const { error } = await supabase.auth.signInWithPassword({ email: loginEmail, password });
-    if (error) {
+
+    const { data, error } = await (supabase as any)
+      .from("workers")
+      .select("id")
+      .eq("pin", password)
+      .eq("is_admin", true)
+      .single();
+
+    if (error || !data) {
       toast.error("بيانات الاعتماد غير صالحة");
     } else {
+      sessionStorage.setItem("admin", "true");
       navigate("/admin");
     }
     setLoading(false);

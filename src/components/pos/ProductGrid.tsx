@@ -1,10 +1,10 @@
 import { useState } from "react";
-import type { Product, ProductSize } from "@/types";
+import type { Product } from "@/types";
 import { motion } from "framer-motion";
 
 interface ProductGridProps {
   products: Product[];
-  onAddToCart: (product: Product, size?: ProductSize) => void;
+  onAddToCart: (product: Product, customAmount?: number) => void;
 }
 
 const ProductGrid = ({ products, onAddToCart }: ProductGridProps) => {
@@ -27,19 +27,14 @@ const ProductCard = ({
   onAdd,
 }: {
   product: Product;
-  onAdd: (product: Product, size?: ProductSize, customAmount?: number) => void;
+  onAdd: (product: Product, customAmount?: number) => void;
 }) => {
-  const [selectedSize, setSelectedSize] = useState<ProductSize | null>(null);
   const [isCustom, setIsCustom] = useState(false);
   const [amount, setAmount] = useState("");
 
-  const hasSizes = product.quantity_type === "kg" && product.product_sizes && product.product_sizes.length > 0;
-  const isBulkKg = product.quantity_type === "kg" && !hasSizes;
-
-  const displayPrice = selectedSize ? selectedSize.selling_price : product.selling_price;
-  const inStock = hasSizes
-    ? (selectedSize ? selectedSize.stock > 0 : true)
-    : product.stock > 0;
+  const isBulkKg = product.quantity_type === "kg";
+  const displayPrice = product.selling_price;
+  const inStock = product.stock > 0;
 
   const handleAdd = () => {
     if (isBulkKg) {
@@ -49,12 +44,11 @@ const ProductCard = ({
       }
       const numAmount = Number(amount);
       if (isNaN(numAmount) || numAmount <= 0) return;
-      onAdd(product, undefined, numAmount);
+      onAdd(product, numAmount);
       setAmount("");
       setIsCustom(false);
     } else {
-      if (hasSizes && !selectedSize) return;
-      onAdd(product, selectedSize || undefined);
+      onAdd(product);
     }
   };
 
@@ -69,30 +63,12 @@ const ProductCard = ({
         </h3>
         <p className="text-lg font-bold text-foreground mt-1 tabular-nums">
           {Number(displayPrice).toLocaleString()} دج
-          {product.quantity_type === "kg" && !hasSizes && <span className="text-[10px] font-normal ml-1">/كغ</span>}
+          {product.quantity_type === "kg" && <span className="text-[10px] font-normal ml-1">/كغ</span>}
         </p>
         {!inStock && (
           <span className="text-xs text-destructive font-medium">نفدت الكمية</span>
         )}
       </div>
-
-      {hasSizes && (
-        <div className="flex flex-wrap gap-1 mb-2">
-          {product.product_sizes!.map((size) => (
-            <button
-              key={size.id}
-              onClick={() => setSelectedSize(size.id === selectedSize?.id ? null : size)}
-              className={`px-2 py-1 rounded-lg text-xs font-medium transition-colors ${selectedSize?.id === size.id
-                ? "bg-foreground text-background"
-                : "bg-secondary text-foreground"
-                } ${size.stock <= 0 ? "opacity-40" : ""}`}
-              disabled={size.stock <= 0}
-            >
-              {size.size_kg}kg
-            </button>
-          ))}
-        </div>
-      )}
 
       {isCustom ? (
         <div className="flex gap-1">
@@ -114,7 +90,7 @@ const ProductCard = ({
       ) : (
         <button
           onClick={handleAdd}
-          disabled={!inStock || (hasSizes && !selectedSize)}
+          disabled={!inStock}
           className="w-full py-2 rounded-xl bg-foreground text-background text-sm font-medium disabled:opacity-30 active:scale-95 transition-transform"
         >
           {isBulkKg ? "بيع بالمبلغ" : "إضافة"}

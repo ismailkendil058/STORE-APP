@@ -9,13 +9,6 @@ import { Plus, Pencil, Trash2, X, ScanBarcode } from "lucide-react";
 import { toast } from "sonner";
 import BarcodeScanner from "@/components/pos/BarcodeScanner";
 
-interface SizeEntry {
-  size_kg: string;
-  selling_price: string;
-  purchase_price: string;
-  stock: string;
-}
-
 const AdminProducts = () => {
   const [products, setProducts] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
@@ -30,7 +23,6 @@ const AdminProducts = () => {
   const [categoryId, setCategoryId] = useState("");
   const [quantityType, setQuantityType] = useState("unit");
   const [stock, setStock] = useState("");
-  const [sizes, setSizes] = useState<SizeEntry[]>([]);
 
   useEffect(() => {
     fetchProducts();
@@ -38,7 +30,7 @@ const AdminProducts = () => {
   }, []);
 
   const fetchProducts = async () => {
-    const { data } = await supabase.from("products").select("*, product_sizes(*), categories(name)").order("created_at");
+    const { data } = await supabase.from("products").select("*, categories(name)").order("created_at");
     if (data) setProducts(data);
   };
 
@@ -49,7 +41,7 @@ const AdminProducts = () => {
 
   const resetForm = () => {
     setName(""); setPurchasePrice(""); setSellingPrice(""); setBarcode("");
-    setCategoryId(""); setQuantityType("unit"); setStock(""); setSizes([]);
+    setCategoryId(""); setQuantityType("unit"); setStock("");
     setEditing(null);
     setShowScanner(false);
   };
@@ -63,14 +55,6 @@ const AdminProducts = () => {
     setCategoryId(p.category_id || "");
     setQuantityType(p.quantity_type);
     setStock(String(p.stock));
-    setSizes(
-      (p.product_sizes || []).map((s: any) => ({
-        size_kg: String(s.size_kg),
-        selling_price: String(s.selling_price),
-        purchase_price: String(s.purchase_price),
-        stock: String(s.stock),
-      }))
-    );
     setShowDialog(true);
   };
 
@@ -87,32 +71,12 @@ const AdminProducts = () => {
       stock: Number(stock) || 0,
     };
 
-    let productId: string;
-
     if (editing) {
       const { error } = await supabase.from("products").update(productData).eq("id", editing.id);
       if (error) { toast.error("فشل التحديث"); return; }
-      productId = editing.id;
-      await supabase.from("product_sizes").delete().eq("product_id", productId);
     } else {
       const { data, error } = await supabase.from("products").insert(productData).select().single();
       if (error || !data) { toast.error("فشل الإنشاء"); return; }
-      productId = data.id;
-    }
-
-    if (quantityType === "kg" && sizes.length > 0) {
-      const sizeData = sizes
-        .filter((s) => s.size_kg)
-        .map((s) => ({
-          product_id: productId,
-          size_kg: Number(s.size_kg),
-          selling_price: Number(s.selling_price) || 0,
-          purchase_price: Number(s.purchase_price) || 0,
-          stock: Number(s.stock) || 0,
-        }));
-      if (sizeData.length > 0) {
-        await supabase.from("product_sizes").insert(sizeData);
-      }
     }
 
     setShowDialog(false);
@@ -126,14 +90,6 @@ const AdminProducts = () => {
     await supabase.from("products").delete().eq("id", id);
     fetchProducts();
     toast.success("تم الحذف");
-  };
-
-  const addSize = () => setSizes([...sizes, { size_kg: "", selling_price: "", purchase_price: "", stock: "" }]);
-  const removeSize = (i: number) => setSizes(sizes.filter((_, idx) => idx !== i));
-  const updateSize = (i: number, field: keyof SizeEntry, value: string) => {
-    const newSizes = [...sizes];
-    newSizes[i][field] = value;
-    setSizes(newSizes);
   };
 
   const handleBarcodeScan = (scannedBarcode: string) => {

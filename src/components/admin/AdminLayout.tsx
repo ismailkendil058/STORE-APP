@@ -8,21 +8,16 @@ const AdminLayout = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) { navigate("/admin/login"); return; }
+    const isAdmin = sessionStorage.getItem("admin") === "true";
+    if (!isAdmin) {
+      navigate("/admin/login");
+    } else {
       setLoading(false);
-    };
-    checkAuth();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (!session) navigate("/admin/login");
-    });
-    return () => subscription.unsubscribe();
+    }
   }, [navigate]);
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
+  const handleLogout = () => {
+    sessionStorage.removeItem("admin");
     navigate("/admin/login");
   };
 
