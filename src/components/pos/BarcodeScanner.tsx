@@ -64,16 +64,10 @@ const BarcodeScanner = ({ onScan, onClose, continuous = false }: BarcodeScannerP
 
       if (typeof navigator !== 'undefined' && navigator.permissions && navigator.permissions.query) {
         try {
-          // Camera permission query is somewhat unstable/unsupported on many mobile platforms
-          // We'll proceed regardless but use it as a helpful "early out" if denied
           const result = await navigator.permissions.query({ name: 'camera' as PermissionName });
           setPermissionState(result.state);
-
-          if (result.state === 'denied' && isMounted.current) {
-            setHasCamera(false);
-            setScanningStatus("error");
-            return;
-          }
+          // Android Chrome sometimes incorrectly reports 'denied' or has issues with early returns here
+          // We let getUserMedia naturally handle the real permission boundary.
         } catch (e) {
           console.log("Permission query not supported", e);
         }
@@ -96,13 +90,10 @@ const BarcodeScanner = ({ onScan, onClose, continuous = false }: BarcodeScannerP
 
       const reader = new BrowserMultiFormatReader(hints);
 
-      // More robust constraints for iOS
+      // Basic constraints that work consistently across Android and iOS
       const constraints: MediaStreamConstraints = {
         video: {
-          facingMode: { ideal: "environment" },
-          // Using more standard dimensions instead of just ideal to help some older iOS versions
-          width: { ideal: 1280, max: 1920 },
-          height: { ideal: 720, max: 1080 }
+          facingMode: "environment"
         },
       };
 
