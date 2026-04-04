@@ -89,15 +89,34 @@ const WorkerPOS = () => {
     toast.success("تم إغلاق الجلسة");
   };
 
-  const addToCart = useCallback((product: Product, size?: ProductSize) => {
+  const addToCart = useCallback((product: Product, size?: ProductSize, customAmount?: number) => {
     setCart((prev) => {
-      const key = product.id + (size?.id || "");
+      if (customAmount) {
+        const existingCustom = prev.find(
+          (item) => item.product.id === product.id && item.customAmountDa
+        );
+        if (existingCustom) {
+          const newAmount = (existingCustom.customAmountDa || 0) + customAmount;
+          return prev.map((item) =>
+            item.product.id === product.id && item.customAmountDa
+              ? {
+                ...item,
+                customAmountDa: newAmount,
+                quantity: newAmount / product.selling_price,
+              }
+              : item
+          );
+        }
+        const quantity = customAmount / product.selling_price;
+        return [...prev, { product, quantity, selectedSize: undefined, customAmountDa: customAmount }];
+      }
+
       const existing = prev.find(
-        (item) => item.product.id === product.id && item.selectedSize?.id === size?.id
+        (item) => item.product.id === product.id && item.selectedSize?.id === size?.id && !item.customAmountDa
       );
       if (existing) {
         return prev.map((item) =>
-          item.product.id === product.id && item.selectedSize?.id === size?.id
+          item.product.id === product.id && item.selectedSize?.id === size?.id && !item.customAmountDa
             ? { ...item, quantity: item.quantity + 1 }
             : item
         );
@@ -125,6 +144,7 @@ const WorkerPOS = () => {
   };
 
   const cartTotal = cart.reduce((sum, item) => {
+    if (item.customAmountDa) return sum + item.customAmountDa;
     const price = item.selectedSize ? item.selectedSize.selling_price : item.product.selling_price;
     return sum + price * item.quantity;
   }, 0);
@@ -155,7 +175,7 @@ const WorkerPOS = () => {
       sale_id: sale.id,
       product_id: item.product.id,
       product_name: item.product.name,
-      size_ml: item.selectedSize?.size_ml || null,
+      size_kg: item.selectedSize?.size_kg || null,
       quantity: item.quantity,
       unit_price: item.selectedSize ? item.selectedSize.selling_price : item.product.selling_price,
       purchase_price: item.selectedSize ? item.selectedSize.purchase_price : item.product.purchase_price,

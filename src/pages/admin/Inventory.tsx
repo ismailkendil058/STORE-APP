@@ -57,14 +57,14 @@ const AdminInventory = () => {
                         </span>
                       )}
                     </div>
-                    {p.quantity_type === "ml" && p.product_sizes?.length > 0 && (
+                    {p.quantity_type === "kg" && p.product_sizes?.length > 0 && (
                       <div className="text-xs text-muted-foreground mt-0.5">
-                        {p.product_sizes.map((s: any) => `${s.size_ml}ml: ${s.stock}`).join(" · ")}
+                        {p.product_sizes.map((s: any) => `${s.size_kg}kg: ${s.stock}`).join(" · ")}
                       </div>
                     )}
                   </td>
                   <td className="py-3 px-2 text-right tabular-nums">
-                    {p.quantity_type === "unit" ? p.stock : "—"}
+                    {(p.quantity_type === "unit" || p.quantity_type === "kg") ? p.stock : "—"}
                   </td>
                   <td className="py-3 px-2 text-right tabular-nums">
                     {Number(p.purchase_price).toLocaleString()}

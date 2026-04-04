@@ -2,16 +2,24 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ChevronRight, Package, History } from "lucide-react";
+import { format } from "date-fns";
+import { ar } from "date-fns/locale";
 
 const AdminDashboard = () => {
   const [period, setPeriod] = useState("month");
   const [stats, setStats] = useState({ revenue: 0, profit: 0, workerStats: [] as any[] });
-  const [chartData, setChartData] = useState<any[]>([]);
+
+  // Session details state
+  const [sessions, setSessions] = useState<any[]>([]);
+  const [selectedSession, setSelectedSession] = useState<any>(null);
+  const [sessionItems, setSessionItems] = useState<any[]>([]);
+  const [itemsLoading, setItemsLoading] = useState(false);
 
   useEffect(() => {
     fetchStats();
-    fetchChartData();
+    fetchRecentSessions();
   }, [period]);
 
   const getDateRange = () => {
@@ -57,28 +65,59 @@ const AdminDashboard = () => {
     });
   };
 
-  const fetchChartData = async () => {
-    const year = new Date().getFullYear();
-    const { data: sales } = await supabase
-      .from("sales")
-      .select("total, profit, created_at")
-      .gte("created_at", `${year}-01-01`)
-      .lte("created_at", `${year}-12-31`);
 
-    if (!sales) return;
+  const fetchRecentSessions = async () => {
+    const since = getDateRange();
+    const { data } = await supabase
+      .from("sessions")
+      .select(`
+        *,
+        workers (name)
+      `)
+      .gte("started_at", since)
+      .order("started_at", { ascending: false })
+      .limit(period === "today" ? 50 : 10);
 
-    const months = Array.from({ length: 12 }, (_, i) => {
-      const month = new Date(year, i).toLocaleString("default", { month: "short" });
-      return { month, revenue: 0, profit: 0 };
-    });
+    if (data) setSessions(data);
+  };
 
-    sales.forEach((s) => {
-      const m = new Date(s.created_at).getMonth();
-      months[m].revenue += Number(s.total);
-      months[m].profit += Number(s.profit);
-    });
+  const fetchSessionItems = async (sessionId: string) => {
+    setItemsLoading(true);
+    const { data } = await supabase
+      .from("sale_items")
+      .select(`
+        *,
+        sales!inner(session_id)
+      `)
+      .eq("sales.session_id", sessionId);
 
-    setChartData(months);
+    if (data) {
+      const grouped = data.reduce((acc: any[], item: any) => {
+        const key = `${item.product_name}-${item.size_ml || 'unit'}`;
+        const existing = acc.find(i => i.key === key);
+        if (existing) {
+          existing.quantity += item.quantity;
+          existing.total += item.quantity * Number(item.unit_price);
+        } else {
+          acc.push({
+            key,
+            product_name: item.product_name,
+            size_ml: item.size_ml,
+            quantity: item.quantity,
+            unit_price: item.unit_price,
+            total: item.quantity * Number(item.unit_price)
+          });
+        }
+        return acc;
+      }, []);
+      setSessionItems(grouped);
+    }
+    setItemsLoading(false);
+  };
+
+  const handleSessionClick = (session: any) => {
+    setSelectedSession(session);
+    fetchSessionItems(session.id);
   };
 
   return (
@@ -133,24 +172,130 @@ const AdminDashboard = () => {
         )
       }
 
-      <Card className="rounded-2xl luxury-shadow border-border/50">
-        <CardContent className="p-4">
-          <p className="text-xs text-muted-foreground uppercase tracking-wider mb-4">نظرة عامة سنوية</p>
-          <div className="h-56">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(0 0% 91%)" />
-                <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 11 }} />
-                <Tooltip />
-                <Legend />
-                <Bar dataKey="revenue" fill="hsl(0, 0%, 15%)" radius={[4, 4, 0, 0]} name="الإيرادات" />
-                <Bar dataKey="profit" fill="hsl(0, 0%, 60%)" radius={[4, 4, 0, 0]} name="الأرباح" />
-              </BarChart>
-            </ResponsiveContainer>
+
+      {/* Recent Sessions Logic moved here */}
+      <div className="space-y-3 pt-2">
+        <div className="flex items-center justify-between px-1">
+          <h3 className="text-sm font-bold flex items-center gap-2">
+            <History className="w-4 h-4" />
+            الجلسات الأخيرة
+          </h3>
+        </div>
+        <div className="space-y-3">
+          {sessions.map((session) => (
+            <Card
+              key={session.id}
+              className="rounded-2xl luxury-shadow border-border/50 cursor-pointer active:scale-95 transition-transform overflow-hidden"
+              onClick={() => handleSessionClick(session)}
+            >
+              <CardContent className="p-0">
+                <div className="p-4 flex items-center justify-between">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xs uppercase">
+                        {session.workers?.name?.charAt(0) || "W"}
+                      </div>
+                      <span className="font-bold text-sm">{session.workers?.name}</span>
+                      {!session.closed_at && (
+                        <span className="bg-green-500/10 text-green-600 text-[10px] px-2 py-0.5 rounded-full font-black animate-pulse">نشط الآن</span>
+                      )}
+                    </div>
+                    <div className="flex flex-col gap-0.5">
+                      <p className="text-[11px] text-muted-foreground flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/30" />
+                        {format(new Date(session.started_at), "EEEE, d MMMM", { locale: ar })}
+                      </p>
+                      <p className="text-[11px] text-muted-foreground flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/30" />
+                        من {format(new Date(session.started_at), "HH:mm", { locale: ar })}
+                        {session.closed_at ? ` إلى ${format(new Date(session.closed_at), "HH:mm", { locale: ar })}` : " (حالياً)"}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right space-y-1">
+                    <p className="text-lg font-black tabular-nums tracking-tight">
+                      {Number(session.total_revenue).toLocaleString()} <span className="text-[10px] font-normal text-muted-foreground">دج</span>
+                    </p>
+                    <div className="flex items-center justify-end gap-1 text-[10px] text-muted-foreground bg-secondary/50 px-2 py-1 rounded-lg">
+                      <Package className="w-3 h-3" />
+                      <span>التفاصيل</span>
+                      <ChevronRight className="w-3 h-3" />
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+          {sessions.length === 0 && (
+            <p className="text-center text-muted-foreground text-xs py-8">لا يوجد جلسات في هذه الفترة</p>
+          )}
+        </div>
+      </div>
+
+      <Dialog open={!!selectedSession} onOpenChange={() => setSelectedSession(null)}>
+        <DialogContent className="max-w-md rounded-2xl max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Package className="w-5 h-5" />
+              تفاصيل مبيعات الجلسة
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto pr-1">
+            {itemsLoading ? (
+              <div className="py-8 text-center text-sm text-muted-foreground">جاري التحميل...</div>
+            ) : sessionItems.length > 0 ? (
+              <div className="space-y-4">
+                <div className="bg-secondary/30 p-3 rounded-xl space-y-1">
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>العامل:</span>
+                    <span className="text-foreground font-medium">{selectedSession?.workers?.name}</span>
+                  </div>
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>البداية:</span>
+                    <span className="text-foreground">{selectedSession && format(new Date(selectedSession.started_at), "HH:mm", { locale: ar })}</span>
+                  </div>
+                  {selectedSession?.closed_at && (
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>النهاية:</span>
+                      <span className="text-foreground">{format(new Date(selectedSession.closed_at), "HH:mm", { locale: ar })}</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground px-1">المنتجات المباعة</h4>
+                  {sessionItems.map((item, idx) => (
+                    <div key={idx} className="flex justify-between items-center bg-card p-3 rounded-xl border border-border/50">
+                      <div>
+                        <p className="text-sm font-medium">{item.product_name}</p>
+                        <p className="text-[11px] text-muted-foreground">
+                          {item.size_ml ? `${item.size_ml} مل` : 'وحدة'} × {item.quantity}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-bold tabular-nums">{item.total.toLocaleString()} دج</p>
+                        <p className="text-[10px] text-muted-foreground tabular-nums">{item.unit_price} دج/وحدة</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="pt-2 border-t border-dashed border-border">
+                  <div className="flex justify-between items-center px-1">
+                    <span className="font-bold">الإجمالي</span>
+                    <span className="text-lg font-black tabular-nums">
+                      {Number(selectedSession?.total_revenue).toLocaleString()} دج
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="py-8 text-center text-sm text-muted-foreground">لا يوجد مبيعات مسجلة</div>
+            )}
           </div>
-        </CardContent>
-      </Card>
+        </DialogContent>
+      </Dialog>
     </div >
   );
 };

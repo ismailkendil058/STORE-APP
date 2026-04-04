@@ -17,7 +17,7 @@ export interface Product {
   selling_price: number;
   barcode: string | null;
   category_id: string | null;
-  quantity_type: 'unit' | 'ml';
+  quantity_type: 'unit' | 'kg';
   stock: number;
   created_at: string;
   product_sizes?: ProductSize[];
@@ -26,7 +26,7 @@ export interface Product {
 export interface ProductSize {
   id: string;
   product_id: string;
-  size_ml: number;
+  size_kg: number;
   selling_price: number;
   purchase_price: number;
   stock: number;
@@ -54,7 +54,7 @@ export interface SaleItem {
   sale_id: string;
   product_id: string;
   product_name: string;
-  size_ml: number | null;
+  size_kg: number | null;
   quantity: number;
   unit_price: number;
   purchase_price: number;
@@ -64,4 +64,5 @@ export interface CartItem {
   product: Product;
   quantity: number;
   selectedSize?: ProductSize;
+  customAmountDa?: number;
 }

@@ -7,7 +7,7 @@ import { motion } from "framer-motion";
 import { toast } from "sonner";
 
 const AdminLogin = () => {
-  const [email, setEmail] = useState("");
+  const [email] = useState("admin");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
@@ -38,13 +38,6 @@ const AdminLogin = () => {
         </div>
 
         <form onSubmit={handleLogin} className="space-y-4">
-          <Input
-            type="text"
-            placeholder="اسم المستخدم (مثال: admin)"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="h-12 rounded-xl"
-          />
           <Input
             type="password"
             placeholder="كلمة المرور"

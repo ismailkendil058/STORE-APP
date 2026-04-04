@@ -10,7 +10,7 @@ import { toast } from "sonner";
 import BarcodeScanner from "@/components/pos/BarcodeScanner";
 
 interface SizeEntry {
-  size_ml: string;
+  size_kg: string;
   selling_price: string;
   purchase_price: string;
   stock: string;
@@ -65,7 +65,7 @@ const AdminProducts = () => {
     setStock(String(p.stock));
     setSizes(
       (p.product_sizes || []).map((s: any) => ({
-        size_ml: String(s.size_ml),
+        size_kg: String(s.size_kg),
         selling_price: String(s.selling_price),
         purchase_price: String(s.purchase_price),
         stock: String(s.stock),
@@ -100,12 +100,12 @@ const AdminProducts = () => {
       productId = data.id;
     }
 
-    if (quantityType === "ml" && sizes.length > 0) {
+    if (quantityType === "kg" && sizes.length > 0) {
       const sizeData = sizes
-        .filter((s) => s.size_ml)
+        .filter((s) => s.size_kg)
         .map((s) => ({
           product_id: productId,
-          size_ml: Number(s.size_ml),
+          size_kg: Number(s.size_kg),
           selling_price: Number(s.selling_price) || 0,
           purchase_price: Number(s.purchase_price) || 0,
           stock: Number(s.stock) || 0,
@@ -128,7 +128,7 @@ const AdminProducts = () => {
     toast.success("تم الحذف");
   };
 
-  const addSize = () => setSizes([...sizes, { size_ml: "", selling_price: "", purchase_price: "", stock: "" }]);
+  const addSize = () => setSizes([...sizes, { size_kg: "", selling_price: "", purchase_price: "", stock: "" }]);
   const removeSize = (i: number) => setSizes(sizes.filter((_, idx) => idx !== i));
   const updateSize = (i: number, field: keyof SizeEntry, value: string) => {
     const newSizes = [...sizes];
@@ -158,7 +158,7 @@ const AdminProducts = () => {
                 <div className="flex-1 min-w-0">
                   <p className="font-medium">{p.name}</p>
                   <p className="text-xs text-muted-foreground">
-                    {p.categories?.name || "بدون فئة"} · {p.quantity_type === "ml" ? "أحجام مل" : `${p.stock} في المخزون`}
+                    {p.categories?.name || "بدون فئة"} · {p.quantity_type === "kg" ? `${p.stock} كغ` : `${p.stock} في المخزون`}
                   </p>
                   <div className="flex gap-3 mt-1 text-sm tabular-nums">
                     <span>شراء: {Number(p.purchase_price).toLocaleString()} دج</span>
@@ -192,40 +192,47 @@ const AdminProducts = () => {
           <div className="space-y-3">
             <Input placeholder="اسم المنتج" value={name} onChange={(e) => setName(e.target.value)} className="h-11 rounded-xl" />
 
+            <Select value={quantityType} onValueChange={setQuantityType}>
+              <SelectTrigger className="h-11 rounded-xl"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="unit">بالوحدة</SelectItem>
+                <SelectItem value="kg">بالكيلوغرام (أوزان)</SelectItem>
+              </SelectContent>
+            </Select>
+
             <div className="grid grid-cols-2 gap-2">
               <Input placeholder="سعر الشراء (دج)" type="number" value={purchasePrice} onChange={(e) => setPurchasePrice(e.target.value)} className="h-11 rounded-xl" />
               <Input placeholder="سعر البيع (دج)" type="number" value={sellingPrice} onChange={(e) => setSellingPrice(e.target.value)} className="h-11 rounded-xl" />
             </div>
 
-            <div className="flex gap-2">
-              <Input
-                placeholder="الرمز الشريطي (اختياري)"
-                value={barcode}
-                onChange={(e) => setBarcode(e.target.value)}
-                className="h-11 rounded-xl flex-1"
-              />
-              <Button
-                type="button"
-                variant="outline"
-                onClick={async () => {
-                  try {
-                    // Pre-requesting permission in the user gesture stack for iOS PWA compatibility
-                    // This creates the direct interaction window Safari requires
-                    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-                    // Once granted, we stop the initial stream and show the scanner
-                    stream.getTracks().forEach(t => t.stop());
-                    setShowScanner(true);
-                  } catch (err) {
-                    console.warn("Pre-permission failed or was denied, opening scanner for recovery", err);
-                    setShowScanner(true); // Still open scanner to show error message or try again
-                  }
-                }}
-                className="h-11 rounded-xl px-3"
-                aria-label="Scan barcode"
-              >
-                <ScanBarcode className="w-5 h-5" />
-              </Button>
-            </div>
+            {quantityType !== "kg" && (
+              <div className="flex gap-2">
+                <Input
+                  placeholder="الرمز الشريطي (اختياري)"
+                  value={barcode}
+                  onChange={(e) => setBarcode(e.target.value)}
+                  className="h-11 rounded-xl flex-1"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={async () => {
+                    try {
+                      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                      stream.getTracks().forEach(t => t.stop());
+                      setShowScanner(true);
+                    } catch (err) {
+                      console.warn("Pre-permission failed or was denied", err);
+                      setShowScanner(true);
+                    }
+                  }}
+                  className="h-11 rounded-xl px-3"
+                  aria-label="Scan barcode"
+                >
+                  <ScanBarcode className="w-5 h-5" />
+                </Button>
+              </div>
+            )}
 
             <Select value={categoryId} onValueChange={setCategoryId}>
               <SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="الفئة" /></SelectTrigger>
@@ -236,36 +243,14 @@ const AdminProducts = () => {
               </SelectContent>
             </Select>
 
-            <Select value={quantityType} onValueChange={setQuantityType}>
-              <SelectTrigger className="h-11 rounded-xl"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="unit">بالوحدة</SelectItem>
-                <SelectItem value="ml">بالملليلتر (أحجام)</SelectItem>
-              </SelectContent>
-            </Select>
-
-            {quantityType === "unit" && (
-              <Input placeholder="كمية المخزون" type="number" value={stock} onChange={(e) => setStock(e.target.value)} className="h-11 rounded-xl" />
-            )}
-
-            {quantityType === "ml" && (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-medium">الأحجام</p>
-                  <Button type="button" variant="outline" size="sm" onClick={addSize} className="rounded-xl gap-1">
-                    <Plus className="w-3 h-3" /> حجم
-                  </Button>
-                </div>
-                {sizes.map((s, i) => (
-                  <div key={i} className="grid grid-cols-5 gap-1 items-center">
-                    <Input placeholder="ml" value={s.size_ml} onChange={(e) => updateSize(i, "size_ml", e.target.value)} className="h-9 rounded-lg text-xs" />
-                    <Input placeholder="شراء" value={s.purchase_price} onChange={(e) => updateSize(i, "purchase_price", e.target.value)} className="h-9 rounded-lg text-xs" />
-                    <Input placeholder="بيع" value={s.selling_price} onChange={(e) => updateSize(i, "selling_price", e.target.value)} className="h-9 rounded-lg text-xs" />
-                    <Input placeholder="المخزون" value={s.stock} onChange={(e) => updateSize(i, "stock", e.target.value)} className="h-9 rounded-lg text-xs" />
-                    <button onClick={() => removeSize(i)} className="p-1 text-destructive" title="Remove size"><X className="w-4 h-4" /></button>
-                  </div>
-                ))}
-              </div>
+            {(quantityType === "unit" || quantityType === "kg") && (
+              <Input
+                placeholder={quantityType === "unit" ? "كمية المخزون" : "الوزن الإجمالي (كغ)"}
+                type="number"
+                value={stock}
+                onChange={(e) => setStock(e.target.value)}
+                className="h-11 rounded-xl"
+              />
             )}
 
             <Button onClick={handleSave} className="w-full h-11 rounded-xl">{editing ? "تحديث" : "إضافة منتج"}</Button>

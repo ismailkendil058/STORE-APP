@@ -27,14 +27,36 @@ const ProductCard = ({
   onAdd,
 }: {
   product: Product;
-  onAdd: (product: Product, size?: ProductSize) => void;
+  onAdd: (product: Product, size?: ProductSize, customAmount?: number) => void;
 }) => {
   const [selectedSize, setSelectedSize] = useState<ProductSize | null>(null);
-  const hasSizes = product.quantity_type === "ml" && product.product_sizes && product.product_sizes.length > 0;
+  const [isCustom, setIsCustom] = useState(false);
+  const [amount, setAmount] = useState("");
+
+  const hasSizes = product.quantity_type === "kg" && product.product_sizes && product.product_sizes.length > 0;
+  const isBulkKg = product.quantity_type === "kg" && !hasSizes;
+
   const displayPrice = selectedSize ? selectedSize.selling_price : product.selling_price;
   const inStock = hasSizes
     ? (selectedSize ? selectedSize.stock > 0 : true)
     : product.stock > 0;
+
+  const handleAdd = () => {
+    if (isBulkKg) {
+      if (!isCustom) {
+        setIsCustom(true);
+        return;
+      }
+      const numAmount = Number(amount);
+      if (isNaN(numAmount) || numAmount <= 0) return;
+      onAdd(product, undefined, numAmount);
+      setAmount("");
+      setIsCustom(false);
+    } else {
+      if (hasSizes && !selectedSize) return;
+      onAdd(product, selectedSize || undefined);
+    }
+  };
 
   return (
     <motion.div
@@ -47,6 +69,7 @@ const ProductCard = ({
         </h3>
         <p className="text-lg font-bold text-foreground mt-1 tabular-nums">
           {Number(displayPrice).toLocaleString()} دج
+          {product.quantity_type === "kg" && !hasSizes && <span className="text-[10px] font-normal ml-1">/كغ</span>}
         </p>
         {!inStock && (
           <span className="text-xs text-destructive font-medium">نفدت الكمية</span>
@@ -60,27 +83,43 @@ const ProductCard = ({
               key={size.id}
               onClick={() => setSelectedSize(size.id === selectedSize?.id ? null : size)}
               className={`px-2 py-1 rounded-lg text-xs font-medium transition-colors ${selectedSize?.id === size.id
-                  ? "bg-foreground text-background"
-                  : "bg-secondary text-foreground"
+                ? "bg-foreground text-background"
+                : "bg-secondary text-foreground"
                 } ${size.stock <= 0 ? "opacity-40" : ""}`}
               disabled={size.stock <= 0}
             >
-              {size.size_ml}ml
+              {size.size_kg}kg
             </button>
           ))}
         </div>
       )}
 
-      <button
-        onClick={() => {
-          if (hasSizes && !selectedSize) return;
-          onAdd(product, selectedSize || undefined);
-        }}
-        disabled={!inStock || (hasSizes && !selectedSize)}
-        className="w-full py-2 rounded-xl bg-foreground text-background text-sm font-medium disabled:opacity-30 active:scale-95 transition-transform"
-      >
-        إضافة
-      </button>
+      {isCustom ? (
+        <div className="flex gap-1">
+          <input
+            autoFocus
+            type="number"
+            placeholder="المبلغ دج"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            className="w-full h-10 px-2 rounded-xl bg-secondary text-sm"
+          />
+          <button
+            onClick={handleAdd}
+            className="px-3 h-10 rounded-xl bg-foreground text-background text-sm font-medium"
+          >
+            تم
+          </button>
+        </div>
+      ) : (
+        <button
+          onClick={handleAdd}
+          disabled={!inStock || (hasSizes && !selectedSize)}
+          className="w-full py-2 rounded-xl bg-foreground text-background text-sm font-medium disabled:opacity-30 active:scale-95 transition-transform"
+        >
+          {isBulkKg ? "بيع بالمبلغ" : "إضافة"}
+        </button>
+      )}
     </motion.div>
   );
 };
