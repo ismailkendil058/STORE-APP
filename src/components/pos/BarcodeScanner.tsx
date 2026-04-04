@@ -191,17 +191,25 @@ const BarcodeScanner = ({ onScan, onClose, continuous = false }: BarcodeScannerP
     }
   }, [stopCamera]);
 
+  const isAndroidChrome = /Android/i.test(navigator.userAgent) && /Chrome/i.test(navigator.userAgent);
+  const [needsManualStart, setNeedsManualStart] = useState<boolean>(isAndroidChrome);
+
   useEffect(() => {
     isMounted.current = true;
-    initCamera();
+
+    // Auto-start for iOS and non-Android-Chrome browsers
+    if (!needsManualStart) {
+      initCamera();
+    }
 
     return () => {
       isMounted.current = false;
       stopCamera();
     };
-  }, [initCamera, stopCamera]);
+  }, [initCamera, stopCamera, needsManualStart]);
 
   const handleRetry = () => {
+    setNeedsManualStart(false);
     initCamera();
   };
 
@@ -281,7 +289,22 @@ const BarcodeScanner = ({ onScan, onClose, continuous = false }: BarcodeScannerP
         </div>
 
         <div className="flex-1 relative bg-black/5 aspect-square md:aspect-[4/3] flex items-center justify-center overflow-hidden m-4 rounded-2xl border border-black/5 dark:border-white/5">
-          {scanningStatus === "loading" && (
+          {needsManualStart ? (
+            <div className="flex flex-col items-center justify-center p-8 text-center bg-black/40 absolute inset-0 z-50">
+              <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center mb-4 shadow-lg text-white">
+                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" /><circle cx="12" cy="13" r="4" /></svg>
+              </div>
+              <h3 className="text-white font-semibold text-lg mb-2">Camera Ready</h3>
+              <p className="text-white/70 text-sm mb-6 max-w-[200px]">Tap to initialize the scanner</p>
+
+              <button
+                onClick={() => setNeedsManualStart(false)}
+                className="bg-primary text-primary-foreground hover:bg-primary/90 px-6 py-3 rounded-xl font-medium shadow-xl active:scale-95 transition-all text-sm w-full max-w-[200px]"
+              >
+                Scan Product
+              </button>
+            </div>
+          ) : scanningStatus === "loading" && (
             <div className="flex flex-col items-center justify-center text-muted-foreground p-8 text-center">
               <Loader2 className="w-8 h-8 animate-spin mb-4 text-primary" />
               <p className="text-sm font-medium">
@@ -292,7 +315,6 @@ const BarcodeScanner = ({ onScan, onClose, continuous = false }: BarcodeScannerP
                   ? "Please click 'Allow' in the browser prompt to start scanning."
                   : "Setting up the scanner. This usually takes just a second."}
               </p>
-
               {showRetry && (
                 <button
                   onClick={handleRetry}
