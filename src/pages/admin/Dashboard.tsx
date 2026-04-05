@@ -8,7 +8,8 @@ import { format } from "date-fns";
 import { ar } from "date-fns/locale";
 
 const AdminDashboard = () => {
-  const [period, setPeriod] = useState("month");
+  const [period, setPeriod] = useState("today");
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [stats, setStats] = useState({ revenue: 0, profit: 0, workerStats: [] as any[] });
 
   // Session details state
@@ -20,27 +21,35 @@ const AdminDashboard = () => {
   useEffect(() => {
     fetchStats();
     fetchRecentSessions();
-  }, [period]);
+  }, [period, selectedDate]);
 
-  const getDateRange = () => {
+  const getFilters = () => {
     const now = new Date();
     let start: Date;
+    let end: Date | null = null;
+
     if (period === "today") {
-      start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      start = new Date(selectedDate);
+      end = new Date(start);
+      end.setDate(end.getDate() + 1);
     } else if (period === "month") {
       start = new Date(now.getFullYear(), now.getMonth(), 1);
     } else {
       start = new Date(now.getFullYear(), 0, 1);
     }
-    return start.toISOString();
+    return { start: start.toISOString(), end: end ? end.toISOString() : null };
   };
 
   const fetchStats = async () => {
-    const since = getDateRange();
-    const { data: sales } = await supabase
+    const { start, end } = getFilters();
+    let query = supabase
       .from("sales")
       .select("total, profit, worker_id")
-      .gte("created_at", since);
+      .gte("created_at", start);
+
+    if (end) query = query.lt("created_at", end);
+
+    const { data: sales } = await query;
 
     if (!sales) return;
 
@@ -67,14 +76,18 @@ const AdminDashboard = () => {
 
 
   const fetchRecentSessions = async () => {
-    const since = getDateRange();
-    const { data } = await supabase
+    const { start, end } = getFilters();
+    let query = supabase
       .from("sessions")
       .select(`
         *,
         workers (name)
       `)
-      .gte("started_at", since)
+      .gte("started_at", start);
+
+    if (end) query = query.lt("started_at", end);
+
+    const { data } = await query
       .order("started_at", { ascending: false })
       .limit(period === "today" ? 50 : 10);
 
@@ -124,16 +137,26 @@ const AdminDashboard = () => {
     <div className="p-4 space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">لوحة الإحصائيات</h2>
-        <Select value={period} onValueChange={setPeriod}>
-          <SelectTrigger className="w-32 h-9 rounded-xl">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="today">اليوم</SelectItem>
-            <SelectItem value="month">هذا الشهر</SelectItem>
-            <SelectItem value="year">هذا العام</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="flex items-center gap-2">
+          {period === "today" && (
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              className="h-9 rounded-xl border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors w-[140px]"
+            />
+          )}
+          <Select value={period} onValueChange={setPeriod}>
+            <SelectTrigger className="w-32 h-9 rounded-xl">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="today">يومي</SelectItem>
+              <SelectItem value="month">هذا الشهر</SelectItem>
+              <SelectItem value="year">هذا العام</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3">
